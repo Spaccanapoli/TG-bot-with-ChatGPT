@@ -1,0 +1,89 @@
+import openai
+import logging
+import time
+import openai.error
+import requests
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from functools import wraps
+
+# Set up logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# Set up OpenAI API key
+openai.api_key = "your token here"
+
+# Define a function to generate a response using the OpenAI API
+def generate_response(prompt):
+    max_retries =10
+    for i in range(max_retries):
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                max_tokens=1000,
+                n=1,
+                stop=None,
+                temperature=0.7,
+            )
+            message = response.choices[0].message.content.strip()
+            return message
+        except openai.error.APIConnectionError:
+            print(f"Connection error, retrying in 3 seconds... (attempt {i+1}/{max_retries})")
+            time.sleep(3)
+            continue
+    return "Error: Failed to connect to the OpenAI API after multiple attempts."
+
+# Define a function to recognize the user id of the person interacting with the bot
+def recognize_user_id(update: Update, context: CallbackContext) -> int:
+    user_id = update.effective_user.id
+    return user_id
+
+# Define a function to handle the /start command
+def start(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text('Привет, я - семейный помощник на основе GPT-3.5. Мне назначена роль ассистента')
+
+# Define a function to handle text messages
+def text_handler(update: Update, context: CallbackContext) -> None:
+    message = update.message.text
+    response = generate_response(message)
+    update.message.reply_text(response)
+
+# Define a decorator to restrict access to certain users
+LIST_OF_ADMINS = {000000001,000000002,000000003} # Replace with the user ids of the admins
+
+def restricted(func):
+    @wraps(func)
+    def wrapped(update, context, *args, **kwargs):
+        user_id = recognize_user_id(update, context)
+        if user_id not in LIST_OF_ADMINS:
+            logging.warning(f"Unauthorized access denied for user {user_id}.")
+            update.message.reply_text("You are not authorized to use this bot. Please contact the admin.")
+            return
+        return func(update, context, *args, **kwargs)
+    return wrapped
+
+
+# Set up the Telegram bot and handlers
+def main() -> None:
+    updater = Updater("your tg key here", use_context=True)
+
+    dispatcher = updater.dispatcher
+
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, restricted(text_handler)))
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
