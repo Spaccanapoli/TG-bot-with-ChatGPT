@@ -7,7 +7,7 @@ const pool = new Pool({
   password: 'password',
   port: '5432',
 });
-// Вытаскиваем историю запросов пользователя 
+// Вытаскиваем историю запросов пользователя глубиной 5 вопрос и ответов, от более старого к более новому
 async function getLastUserQuestions(userId) {
   const query = 
     SELECT STRING_AGG(subquery.combined_text, E'\n') AS combined_text
