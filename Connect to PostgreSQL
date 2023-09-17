@@ -1,0 +1,22 @@
+// Коннектимся к БД
+const { Pool } = require('pg');
+const pool = new Pool({
+  user: 'postgres',
+  host: 'host adress', 
+  database: 'postgres',
+  password: 'password',
+  port: '5432',
+});
+// Вытаскиваем историю запросов пользователя 
+async function getLastUserQuestions(userId) {
+  const query = 
+    SELECT STRING_AGG(subquery.combined_text, E'\n') AS combined_text
+    FROM (
+      SELECT 'Мой вопрос: ' || user_request || ' ' || REPLACE(bot_response, 'Ответ ChatGPT: ', 'Твой ответ:') AS combined_text
+      FROM bot_db
+      WHERE user_id = $1
+        AND user_request IS NOT NULL
+        AND request_datetime IS NOT NULL
+      ORDER BY request_datetime DESC
+      LIMIT 5
+    ) AS subquery;
